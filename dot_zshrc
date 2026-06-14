@@ -1,0 +1,172 @@
+# Prompt
+if command -v oh-my-posh >/dev/null && [[ -f "$HOME/.config/ohmyposh/base.toml" ]]; then
+  eval "$(oh-my-posh init zsh --config "$HOME/.config/ohmyposh/base.toml")"
+fi
+### Added by Zinit's installer
+if [[ ! -f $HOME/.local/share/zinit/zinit.git/zinit.zsh ]]; then
+    print -P "%F{33} %F{220}Installing %F{33}ZDHARMA-CONTINUUM%F{220} Initiative Plugin Manager (%F{33}zdharma-continuum/zinit%F{220})…%f"
+    command mkdir -p "$HOME/.local/share/zinit" && command chmod g-rwX "$HOME/.local/share/zinit"
+    command git clone https://github.com/zdharma-continuum/zinit "$HOME/.local/share/zinit/zinit.git" && \
+        print -P "%F{33} %F{34}Installation successful.%f%b" || \
+        print -P "%F{160} The clone has failed.%f%b"
+fi
+
+source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
+### End of Zinit's installer chunk
+
+# Add in zsh plugins
+zinit light zsh-users/zsh-syntax-highlighting
+zinit light zsh-users/zsh-completions
+zinit light zsh-users/zsh-autosuggestions
+zinit light zsh-users/zsh-history-substring-search
+zinit light Aloxaf/fzf-tab
+zinit light olets/zsh-abbr
+
+zinit snippet OMZP::command-not-found
+zinit snippet OMZP::git
+
+# Load completions
+if [[ -d "$HOME/.local/share/zinit/completions" ]]; then
+  for _zcomp in $HOME/.local/share/zinit/completions/_*(N@); do
+    [[ -e "$_zcomp" ]] || command rm -f -- "$_zcomp"
+  done
+fi
+
+command mkdir -p "$HOME/.cache/zsh"
+autoload -Uz compinit
+compinit -d "$HOME/.cache/zsh/zcompdump-${ZSH_VERSION}"
+zinit cdreplay -q
+
+
+# --- FZF ---
+
+# Set up fzf key bindings and fuzzy completion
+if [[ -o interactive && -t 0 && -t 1 ]] && command -v fzf >/dev/null; then
+  eval "$(fzf --zsh)"
+fi
+
+# Set up fzf theme
+fg="#CBE0F0"
+bg="#011628"
+bg_highlight="#143652"
+purple="#B388FF"
+blue="#06BCE4"
+cyan="#2CF9ED"
+
+export FZF_DEFAULT_OPTS="--color=fg:${fg},bg:${bg},hl:${purple},fg+:${fg},bg+:${bg_highlight},hl+:${purple},info:${blue},prompt:${cyan},pointer:${cyan},marker:${cyan},spinner:${cyan},header:${cyan}"
+
+# --- Use fd instead of fzf ---
+export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
+
+export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
+export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
+
+# Advanced customization of fzf options via _fzf_comprun function
+# - The first argument to the function is the name of the command.
+# - You should make sure to pass the rest of the arguments to fzf.
+_fzf_comprun() {
+  local command=$1
+  shift
+
+  case "$command" in
+    cd)           fzf --preview 'eza --tree --color=always {} | head -200' "$@" ;;
+    export|unset) fzf --preview "eval 'echo $'{}"         "$@" ;;
+    ssh)          fzf --preview 'dig {}'                   "$@" ;;
+    *)            fzf --preview "bat -n --color=always --line-range :500 {}" "$@" ;;
+  esac
+}
+
+# Use fd (https://github.com/sharkdp/fd) for listing path candidates.
+# - The first argument to the function ($1) is the base path to start traversal
+# - See the source code (completion.{bash,zsh}) for the details.
+_fzf_compgen_path() {
+  fd --hidden --exclude .git . "$1"
+}
+
+# Use fd to generate the list for directory completion
+_fzf_compgen_dir() {
+  fd --type=d --hidden --exclude .git . "$1"
+}
+
+if [[ -f "$HOME/fzf-git.sh/fzf-git.sh" ]]; then
+  source "$HOME/fzf-git.sh/fzf-git.sh"
+fi
+
+# --- Bat (better cat) ---
+export BAT_THEME=tokyonight_night
+alias cat="bat"
+
+# --- Eza (better ls) ---
+alias ls="eza --color=always --long --git --no-filesize --icons=always --no-time"
+
+# --- The fuck ---
+# thefuck alias
+if command -v thefuck >/dev/null; then
+  eval "$(thefuck --alias)"
+fi
+
+# --- Zoxide (better cd) ---
+
+typeset -U path PATH
+
+# keybindings
+bindkey -e
+bindkey '^p' history-substring-search-up
+bindkey '^n' history-substring-search-down
+bindkey '^[[5~' autosuggest-accept
+
+# history setup
+HISTFILE=$HOME/.zhistory
+HISTSIZE=5000
+SAVEHIST=$HISTSIZE
+setopt appendhistory
+setopt hist_ignore_space
+setopt share_history
+setopt hist_ignore_all_dups
+setopt hist_save_no_dups
+setopt hist_expire_dups_first
+setopt hist_ignore_dups
+setopt hist_find_no_dups
+setopt hist_verify
+
+# completion using arrow keys (based on history)
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+
+
+
+# Completion styling
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+zstyle ':completion:*' menu no
+#zstyle ':completion:*' list-colors "#{(s.:.)LS_COLORS}"
+
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+if [[ -s "$HOME/.atuin/bin/env" ]]; then
+  source "$HOME/.atuin/bin/env"
+fi
+
+if [[ -o interactive && -t 0 && -t 1 ]] && command -v atuin >/dev/null; then
+  eval "$(atuin init zsh)"
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# pnpm
+export PNPM_HOME="/Users/fherrero/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+if command -v zoxide >/dev/null; then
+  eval "$(zoxide init zsh --cmd cd)"
+fi
+
